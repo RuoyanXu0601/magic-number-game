@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magic Number Game</title>
+    
+    <!-- Toastr CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.css" rel="stylesheet">
+    
+    <!-- Balloon CSS -->
+    <style>
+        body {
+            margin: 0;
+        }
+
+        #balloon-container {
+            height: 100vh;
+            padding: 1em;
+            box-sizing: border-box;
+            display: flex;
+            flex-wrap: wrap;
+            overflow: hidden;
+            transition: opacity 500ms;
+            position: fixed;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+        .balloon {
+            height: 125px;
+            width: 105px;
+            border-radius: 75% 75% 70% 70%;
+            position: relative;
+        }
+
+        .balloon:before {
+            content: "";
+            height: 75px;
+            width: 1px;
+            padding: 1px;
+            background-color: #FDFD96;
+            display: block;
+            position: absolute;
+            top: 125px;
+            left: 0;
+            right: 0;
+            margin: auto;
+        }
+
+        .balloon:after {
+            content: "▲";
+            text-align: center;
+            display: block;
+            position: absolute;
+            color: inherit;
+            top: 120px;
+            left: 0;
+            right: 0;
+            margin: auto;
+        }
+
+        @keyframes float {
+            from {
+                transform: translateY(100vh);
+                opacity: 1;
+            }
+            to {
+                transform: translateY(-300vh);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Magic Number Game</h1>
+        
+        <div class="level-selector">
+            <button onclick="setLevel('easy')">Easy (1-100)</button>
+            <button onclick="setLevel('medium')">Medium (1-200)</button>
+            <button onclick="setLevel('impossible')">Impossible (1-1000)</button>
+        </div>
+        
+        <div class="game-interface">
+            <input type="number" id="guessInput" placeholder="Enter your guess">
+            <button onclick="checkGuess()">Submit Guess</button>
+            <p>Remaining guesses: <span id="remainingGuesses">3</span></p>
+            <button onclick="startOver()" style="margin-top: 20px;">Start Over</button>
+        </div>
+    </div>
+
+    <!-- Balloon Container -->
+    <div id="balloon-container"></div>
+
+    <!-- Dependencies -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/2.1.4/toastr.min.js"></script>
+
+    <script>
+        // Toastr Configuration
+        toastr.options = {
+            "closeButton": false,
+            "debug": false,
+            "newestOnTop": false,
+            "progressBar": false,
+            "positionClass": "toast-top-right",
+            "preventDuplicates": false,
+            "onclick": null,
+            "showDuration": 300,
+            "hideDuration": 1000,
+            "timeOut": 5000,
+            "extendedTimeOut": 1000,
+            "showEasing": "swing",
+            "hideEasing": "linear",
+            "showMethod": "fadeIn",
+            "hideMethod": "fadeOut"
+        };
+
+        // Game Logic
+        let currentNumber;
+        let remainingGuesses;
+        let currentLevel = 'easy';
+        const urlParams = new URLSearchParams(window.location.search);
+        const testMode = urlParams.has('unlimitedAttempts');
+
+        // Balloon Functions
+        function random(num) {
+            return Math.floor(Math.random() * num);
+        }
+
+        function getRandomStyles() {
+            const r = random(255);
+            const g = random(255);
+            const b = random(255);
+            const mt = random(200);
+            const ml = random(50);
+            const dur = random(5) + 5;
+            return `
+                background-color: rgba(${r},${g},${b},0.7);
+                color: rgba(${r},${g},${b},0.7);
+                box-shadow: inset -7px -3px 10px rgba(${r-10},${g-10},${b-10},0.7);
+                margin: ${mt}px 0 0 ${ml}px;
+                animation: float ${dur}s ease-in infinite;
+            `;
+        }
+
+        function createBalloons(num) {
+            const container = document.getElementById("balloon-container");
+            for (let i = num; i > 0; i--) {
+                const balloon = document.createElement("div");
+                balloon.className = "balloon";
+                balloon.style.cssText = getRandomStyles();
+                container.append(balloon);
+            }
+        }
+
+        function removeBalloons() {
+            const container = document.getElementById("balloon-container");
+            container.style.opacity = 0;
+            setTimeout(() => {
+                container.innerHTML = '';
+                container.style.opacity = 1;
+            }, 500);
+        }
+
+        // Game Functions
+        function generateNumber() {
+            let max;
+            switch(currentLevel) {
+                case 'medium': max = 200; break;
+                case 'impossible': max = 1000; break;
+                default: max = 100;
+            }
+            currentNumber = Math.floor(Math.random() * max) + 1;
+            remainingGuesses = testMode ? Infinity : 3;
+            document.getElementById('remainingGuesses').textContent = testMode ? '∞' : '3';
+            console.log('Current number:', currentNumber);
+        }
+
+        function setLevel(level) {
+            currentLevel = level;
+            startOver();
+            toastr.success("Level changed", "Success");
+        }
+
+        function checkGuess() {
+            const userGuess = parseInt(document.getElementById('guessInput').value);
+            if (isNaN(userGuess)) {
+                toastr.error("Please enter a valid number", "Error");
+                return;
+            }
+
+            if (userGuess === currentNumber) {
+                createBalloons(30);
+                toastr.success("Congratulations!", "You're right!");
+                setTimeout(removeBalloons, 5000);
+                generateNumber();
+                return;
+            }
+
+            if (!testMode) {
+                remainingGuesses--;
+                document.getElementById('remainingGuesses').textContent = remainingGuesses;
+            }
+
+            if (remainingGuesses <= 0) {
+                toastr.error(`Game Over. The number was ${currentNumber}`, "Game Over");
+                generateNumber();
+            } else {
+                const hint = userGuess < currentNumber ? 'higher' : 'lower';
+                toastr.info(`Try ${hint}!`, "Hint");
+            }
+
+            document.getElementById('guessInput').value = '';
+        }
+
+        function startOver() {
+            generateNumber();
+            document.getElementById('guessInput').value = '';
+            toastr.info("New game started", "Info");
+        }
+
+        // Initialize
+        generateNumber();
+        window.addEventListener('load', createBalloons(0)); // Initialize container
+    </script>
+
+    <style>
+        .container {
+            max-width: 400px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        input {
+            padding: 10px;
+            width: 80%;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</body>
+</html>
